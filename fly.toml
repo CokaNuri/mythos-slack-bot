@@ -8,7 +8,6 @@ primary_region = "nrt"
 
 [[restart]]
   policy = "always"
-  max_retries = 10
 
 [[vm]]
   memory = "256mb"

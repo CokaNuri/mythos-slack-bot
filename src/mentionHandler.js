@@ -1,6 +1,7 @@
 const { findAccountIdByEmail, createIssue } = require('./jiraClient');
+const { classifyTicket } = require('./aiClassifier');
 
-const TICKET_TRIGGER = /(지라|jira).{0,6}(티켓|이슈)/;
+const TICKET_TRIGGER = /(지라|jira).{0,6}(티켓|이슈)/i;
 
 async function collectThreadText(client, channel, thread_ts) {
   if (!thread_ts) return '';
@@ -8,8 +9,8 @@ async function collectThreadText(client, channel, thread_ts) {
   return messages.map((m) => m.text).filter(Boolean).join('\n');
 }
 
-async function resolveAssignee(client, text) {
-  const mentions = [...text.matchAll(/<@([A-Z0-9]+)>/g)];
+async function resolveExplicitAssignee(client, rawText) {
+  const mentions = [...rawText.matchAll(/<@([A-Z0-9]+)>/g)];
   const userMention = mentions[1]; // 첫 번째는 봇 자신, 두 번째가 지정 유저
   if (!userMention) return null;
   const { user } = await client.users.info({ user: userMention[1] });
@@ -19,31 +20,58 @@ async function resolveAssignee(client, text) {
 
 async function handleAppMention({ event, client, say }) {
   console.log('app_mention received:', event.text);
-  const text = event.text.replace(/<@[A-Z0-9]+>/g, '').trim();
+  const textWithoutMentions = event.text.replace(/<@[A-Z0-9]+>/g, '').trim();
 
-  if (!TICKET_TRIGGER.test(text)) {
-    await say({ text: '티켓 생성 요청을 못 찾았어요. "지라 티켓 만들어줘" 같은 문구를 포함해 멘션해주세요.', thread_ts: event.thread_ts ?? event.ts });
+  if (!TICKET_TRIGGER.test(textWithoutMentions)) {
+    await say({
+      text: '티켓 생성 요청을 못 찾았어요. "지라 티켓 만들어줘" 같은 문구를 포함해 멘션해주세요.',
+      thread_ts: event.thread_ts ?? event.ts,
+    });
     return;
   }
 
   const threadText = await collectThreadText(client, event.channel, event.thread_ts);
-  const description = threadText || text;
-  const cleanText = text.replace(/(지라|jira).{0,6}(티켓|이슈)\s*만들어줘?\s*[-:]?\s*/i, '').trim();
-  const summary = (cleanText || description.split('\n')[0]).slice(0, 80);
 
+  // AI 분류 (실패 시 기존 로직으로 폴백)
+  let summary, issueType, assigneeEmail, description;
+  try {
+    const result = await classifyTicket({ text: textWithoutMentions, threadText });
+    summary = result.summary;
+    issueType = result.issueType;
+    assigneeEmail = result.assigneeEmail;
+    description = result.description;
+    console.log('AI classification:', { summary, issueType, assigneeEmail });
+  } catch (err) {
+    console.error('AI classification failed, falling back to regex:', err.message);
+    const cleanText = textWithoutMentions
+      .replace(/(지라|jira).{0,6}(티켓|이슈)\s*만들어줘?\s*[-:]?\s*/i, '')
+      .trim();
+    const content = threadText || textWithoutMentions;
+    summary = (cleanText || content.split('\n')[0]).slice(0, 80);
+    description = content;
+    issueType = null;
+  }
+
+  // 명시적 @멘션이 있으면 AI 추론보다 우선
   let assigneeAccountId = null;
   try {
-    assigneeAccountId = await resolveAssignee(client, event.text);
+    assigneeAccountId = await resolveExplicitAssignee(client, event.text);
+    if (!assigneeAccountId && assigneeEmail) {
+      assigneeAccountId = await findAccountIdByEmail(assigneeEmail);
+    }
   } catch (err) {
-    console.error('assignee lookup failed', err.message);
+    console.error('assignee lookup failed:', err.message);
   }
 
   try {
-    const issue = await createIssue({ summary, description, assigneeAccountId });
+    const issue = await createIssue({ summary, description, assigneeAccountId, issueType });
     await say({ text: `티켓 생성 완료: ${issue.url}`, thread_ts: event.thread_ts ?? event.ts });
   } catch (err) {
-    console.error('jira create failed', err.response?.data ?? err.message);
-    await say({ text: '티켓 생성에 실패했어요. 로그를 확인해주세요.', thread_ts: event.thread_ts ?? event.ts });
+    console.error('jira create failed:', err.response?.data ?? err.message);
+    await say({
+      text: '티켓 생성에 실패했어요. 로그를 확인해주세요.',
+      thread_ts: event.thread_ts ?? event.ts,
+    });
   }
 }
 

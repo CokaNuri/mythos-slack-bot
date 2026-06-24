@@ -14,11 +14,11 @@ async function findAccountIdByEmail(email) {
   return data[0]?.accountId ?? null;
 }
 
-async function createIssue({ summary, description, assigneeAccountId }) {
+async function createIssue({ summary, description, assigneeAccountId, issueType }) {
   const payload = {
     fields: {
       project: { key: process.env.JIRA_DEFAULT_PROJECT_KEY },
-      issuetype: { name: process.env.JIRA_DEFAULT_ISSUE_TYPE },
+      issuetype: { name: issueType || process.env.JIRA_DEFAULT_ISSUE_TYPE },
       summary,
       description: {
         type: 'doc',
