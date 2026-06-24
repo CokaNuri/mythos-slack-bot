@@ -17,6 +17,7 @@ async function resolveAssignee(client, text) {
 }
 
 async function handleAppMention({ event, client, say }) {
+  console.log('app_mention received:', event.text);
   const text = event.text.replace(/<@[A-Z0-9]+>/g, '').trim();
 
   if (!TICKET_TRIGGER.test(text)) {
