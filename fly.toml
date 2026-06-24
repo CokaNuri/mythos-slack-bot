@@ -6,7 +6,7 @@ primary_region = "nrt"
 [deploy]
   strategy = "immediate"
 
-[restart]
+[[restart]]
   policy = "always"
   max_retries = 10
 
