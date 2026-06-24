@@ -1,0 +1,16 @@
+{
+  "name": "mythos-slack",
+  "version": "0.1.0",
+  "private": true,
+  "type": "commonjs",
+  "main": "src/app.js",
+  "scripts": {
+    "start": "node src/app.js",
+    "dev": "node --watch src/app.js"
+  },
+  "dependencies": {
+    "@slack/bolt": "^3.21.4",
+    "axios": "^1.7.7",
+    "dotenv": "^16.4.5"
+  }
+}
