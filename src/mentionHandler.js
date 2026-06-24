@@ -9,9 +9,10 @@ async function collectThreadText(client, channel, thread_ts) {
 }
 
 async function resolveAssignee(client, text) {
-  const mention = text.match(/<@([A-Z0-9]+)>/);
-  if (!mention) return null;
-  const { user } = await client.users.info({ user: mention[1] });
+  const mentions = [...text.matchAll(/<@([A-Z0-9]+)>/g)];
+  const userMention = mentions[1]; // 첫 번째는 봇 자신, 두 번째가 지정 유저
+  if (!userMention) return null;
+  const { user } = await client.users.info({ user: userMention[1] });
   if (!user?.profile?.email) return null;
   return findAccountIdByEmail(user.profile.email);
 }
@@ -27,7 +28,8 @@ async function handleAppMention({ event, client, say }) {
 
   const threadText = await collectThreadText(client, event.channel, event.thread_ts);
   const description = threadText || text;
-  const summary = description.split('\n')[0].slice(0, 80);
+  const cleanText = text.replace(/(지라|jira).{0,6}(티켓|이슈)\s*만들어줘?\s*[-:]?\s*/i, '').trim();
+  const summary = (cleanText || description.split('\n')[0]).slice(0, 80);
 
   let assigneeAccountId = null;
   try {
