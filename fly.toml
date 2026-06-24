@@ -6,6 +6,10 @@ primary_region = "nrt"
 [deploy]
   strategy = "immediate"
 
+[restart]
+  policy = "always"
+  max_retries = 10
+
 [[vm]]
   memory = "256mb"
   cpu_kind = "shared"
