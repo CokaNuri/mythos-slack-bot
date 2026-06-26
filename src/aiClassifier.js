@@ -46,7 +46,6 @@ ${context}
     output_config: {
       format: {
         type: 'json_schema',
-        name: 'ticket_classification',
         schema: {
           type: 'object',
           properties: {
