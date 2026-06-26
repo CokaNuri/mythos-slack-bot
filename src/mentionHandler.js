@@ -1,4 +1,5 @@
 const { findAccountIdByEmail, createIssue } = require('./jiraClient');
+const { createIssue: createGithubIssue } = require('./githubClient');
 const { classifyTicket } = require('./aiClassifier');
 
 const TICKET_TRIGGER = /(지라|jira).{0,6}(티켓|이슈)/i;
@@ -33,14 +34,15 @@ async function handleAppMention({ event, client, say }) {
   const threadText = await collectThreadText(client, event.channel, event.thread_ts);
 
   // AI 분류 (실패 시 기존 로직으로 폴백)
-  let summary, issueType, assigneeEmail, description;
+  let summary, issueType, assigneeEmail, description, targetRepo;
   try {
     const result = await classifyTicket({ text: textWithoutMentions, threadText });
     summary = result.summary;
     issueType = result.issueType;
     assigneeEmail = result.assigneeEmail;
     description = result.description;
-    console.log('AI classification:', { summary, issueType, assigneeEmail });
+    targetRepo = result.targetRepo;
+    console.log('AI classification:', { summary, issueType, assigneeEmail, targetRepo });
   } catch (err) {
     console.error('AI classification failed, falling back to regex:', err.message);
     const cleanText = textWithoutMentions
@@ -64,8 +66,26 @@ async function handleAppMention({ event, client, say }) {
   }
 
   try {
-    const issue = await createIssue({ summary, description, assigneeAccountId, issueType });
-    await say({ text: `티켓 생성 완료: ${issue.url}`, thread_ts: event.thread_ts ?? event.ts });
+    const jiraIssue = await createIssue({ summary, description, assigneeAccountId, issueType });
+
+    let githubIssue = null;
+    if (process.env.GITHUB_TOKEN && process.env.GITHUB_OWNER && targetRepo) {
+      try {
+        githubIssue = await createGithubIssue({
+          title: summary,
+          body: `${description}\n\n---\nJira: ${jiraIssue.url}`,
+          repo: targetRepo,
+        });
+      } catch (err) {
+        console.error('github issue create failed:', err.response?.data ?? err.message);
+      }
+    }
+
+    const githubText = githubIssue ? `\nGitHub: ${githubIssue.url}` : '';
+    await say({
+      text: `티켓 생성 완료\nJira: ${jiraIssue.url}${githubText}`,
+      thread_ts: event.thread_ts ?? event.ts,
+    });
   } catch (err) {
     console.error('jira create failed:', err.response?.data ?? err.message);
     await say({

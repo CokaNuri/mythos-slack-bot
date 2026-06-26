@@ -31,6 +31,12 @@ async function classifyTicket({ text, threadText }) {
         role: 'user',
         content: `Slack 메시지를 분석해서 Jira 티켓 정보를 추출해줘.${teamContext}
 
+GitHub 레포 목록:
+- moondeuk-ios: iOS 앱 관련
+- moondeuk-android: Android 앱 관련
+- moondeuk-backend: 서버/백엔드/API 관련
+- null: 개발과 무관한 경우 (기획, 마케팅, 일정 등)
+
 메시지:
 ${context}
 
@@ -39,7 +45,8 @@ ${context}
   "summary": "티켓 제목 (80자 이하, 핵심 작업만)",
   "issueType": "Task 또는 Story 또는 Bug 중 하나 (영어)",
   "assigneeEmail": "담당자 이메일 또는 null",
-  "description": "작업 상세 설명"
+  "description": "작업 상세 설명",
+  "targetRepo": "moondeuk-ios 또는 moondeuk-android 또는 moondeuk-backend 또는 null"
 }`,
       },
     ],
@@ -53,8 +60,9 @@ ${context}
             issueType: { type: 'string', enum: ['Task', 'Story', 'Bug'] },
             assigneeEmail: { type: ['string', 'null'] },
             description: { type: 'string' },
+            targetRepo: { type: ['string', 'null'] },
           },
-          required: ['summary', 'issueType', 'description'],
+          required: ['summary', 'issueType', 'description', 'assigneeEmail', 'targetRepo'],
           additionalProperties: false,
         },
       },
